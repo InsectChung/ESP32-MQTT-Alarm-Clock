@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智慧鬧鐘</title>
+<style>
+  body {
+    font-family: "Microsoft JhengHei", sans-serif;
+    background-color: #e8f5e9; /* 保留原始綠色背景 */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+    padding: 20px;
+    font-size: 18px;
+  }
+  .container {
+    background: #ffffff;
+    border-radius: 20px;
+    box-shadow: 0 6px 15px rgba(0,0,0,0.25);
+    width: 95%;
+    max-width: 900px;
+    padding: 32px;
+  }
+  h1 {
+    text-align: center;
+    font-size: 40px;
+    color: #1b5e20;
+    font-weight: 900;
+    margin-bottom: 30px;
+    letter-spacing: 2px;
+  }
+  .box {
+    background: #f9f9f9;
+    padding: 20px;
+    margin-bottom: 24px;
+    border-radius: 12px;
+    border: 1px solid #d9d9d9;
+  }
+  .center { text-align: center; }
+  
+  /* 溫濕度橘色區塊樣式 */
+  .env-box {
+    background: #fff8e1;
+    border: 1px solid #ffe082;
+    display: flex;
+    justify-content: space-around;
+    padding: 20px;
+  }
+  .env-item { text-align: center; flex: 1; }
+  .env-label { font-size: 16px; color: #f57c00; margin-bottom: 5px; }
+  .env-val { font-size: 32px; font-weight: bold; color: #e65100; }
+  .divider { border-left: 1px solid #ffe082; height: 50px; align-self: center; }
+
+  button {
+    background: #1b5e20;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 20px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 18px;
+  }
+  button:hover { background: #145a26; }
+  
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+  }
+  th, td { padding: 12px; border-bottom: 1px solid #eee; text-align: center; }
+  th { background: #1b5e20; color: white; font-size: 20px; border-radius: 5px; }
+
+  input, select {
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    font-size: 18px;
+    margin: 5px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>智慧鬧鐘</h1>
+
+  <div class="box center">
+    <div id="time" style="font-size: 28px; font-weight: bold; color: #333;">台灣時間：--</div>
+    <div id="next" style="color: #2e7d32; margin-top: 8px; font-weight: bold;">下一次響鈴：(無)</div>
+  </div>
+
+  <div class="box env-box">
+    <div class="env-item">
+      <div class="env-label">室內溫度</div>
+      <div id="env_temp" class="env-val">-- °C</div>
+    </div>
+    <div class="divider"></div>
+    <div class="env-item">
+      <div class="env-label">室內濕度</div>
+      <div id="env_humi" class="env-val">-- %</div>
+    </div>
+  </div>
+
+  <div class="box center">
+    <input type="time" id="alarmTime" value="08:00">
+    <select id="repeat">
+      <option value="0">僅響一次</option>
+      <option value="1">每天重複</option>
+    </select>
+    <select id="musicSelect"></select>
+    <button onclick="addAlarm()">新增鬧鐘</button>
+  </div>
+
+  <div class="box">
+    <table>
+      <thead>
+        <tr>
+          <th>編號</th>
+          <th>時間</th>
+          <th>模式</th>
+          <th>音樂</th>
+          <th>開關</th>
+          <th>刪除</th>
+        </tr>
+      </thead>
+      <tbody id="alarmBody">
+        <tr><td colspan="6" class="gray">目前沒有鬧鐘</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const musicList=["生日快樂","給愛麗絲","小蜜蜂","快樂頌"];
+const musicSelect=document.getElementById("musicSelect");
+musicList.forEach((m,i)=>{
+  let o=document.createElement("option"); o.value=i; o.textContent=m; musicSelect.appendChild(o);
+});
+
+async function refreshAll(){
+  try{
+    const [tRes, eRes, aRes] = await Promise.all([fetch('/time'), fetch('/env'), fetch('/alarms')]);
+    const t = await tRes.json();
+    const e = await eRes.json();
+    const aData = await aRes.json();
+
+    // 更新時間
+    document.getElementById('time').textContent=`台灣時間：${t.y}/${t.M}/${t.d} ${t.h.toString().padStart(2,'0')}:${t.m.toString().padStart(2,'0')}:${t.s.toString().padStart(2,'0')}`;
+    
+    // 更新環境
+    document.getElementById('env_temp').textContent = `${e.temp} °C`;
+    document.getElementById('env_humi').textContent = `${e.humi} %`;
+
+    // 更新列表
+    const body = document.getElementById('alarmBody');
+    body.innerHTML = aData.alarms.length ? "" : '<tr><td colspan="6" class="gray">目前沒有鬧鐘</td></tr>';
+    aData.alarms.forEach((a,i)=>{
+      body.innerHTML+=`<tr>
+      <td>${i+1}</td>
+      <td style="font-weight:bold">${a.h.toString().padStart(2,'0')}:${a.m.toString().padStart(2,'0')}</td>
+      <td>${a.repeat?'每天':'單次'}</td>
+      <td>${musicList[a.music]}</td>
+      <td><button onclick="fetch('/switch?id=${i}').then(refreshAll)" style="background:${a.enabled?'#1b5e20':'#888'}">${a.enabled?'開啟':'關閉'}</button></td>
+      <td><button onclick="if(confirm('確定刪除？'))fetch('/delete?id=${i}').then(refreshAll)" style="background:#c62828;">刪除</button></td></tr>`;
+    });
+  }catch{}
+}
+
+async function addAlarm(){
+  const t=document.getElementById("alarmTime").value;
+  if(!t){alert("請選擇時間");return;}
+  const [h, m] = t.split(':');
+  const r = document.getElementById("repeat").value;
+  const mu = musicSelect.value;
+  await fetch(`/add?h=${h}&m=${m}&repeat=${r}&music=${mu}`);
+  refreshAll();
+}
+
+setInterval(refreshAll, 500);
+refreshAll();
+</script>
+</body>
+</html>
